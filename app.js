@@ -6,7 +6,6 @@ const flash = require('connect-flash');
 const passport = require('passport');
 const { query } = require('./db');
 const authRoutes = require('./routes/auth');
-require('./config/passport');
 
 const app = express();
 const PORT = process.env.PORT || 3002;
