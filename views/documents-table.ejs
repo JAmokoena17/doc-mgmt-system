@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Documents - AI Application</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #2563eb;
+            --primary-dark: #1e40af;
+            --secondary-color: #64748b;
+            --success-color: #10b981;
+            --danger-color: #ef4444;
+            --warning-color: #f59e0b;
+            --dark-bg: #1e293b;
+            --light-bg: #f8fafc;
+            --text-primary: #1e293b;
+            --text-secondary: #64748b;
+            --border-color: #e2e8f0;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        }
+        
+        .documents-container {
+            padding: 2rem 0;
+            min-height: 100vh;
+        }
+        
+        .page-header {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 16px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        .table-container {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 16px;
+            padding: 1.5rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        .table {
+            margin-bottom: 0;
+        }
+        
+        .table thead th {
+            border-bottom: 2px solid var(--border-color);
+            color: var(--text-primary);
+            font-weight: 600;
+            background: var(--light-bg);
+        }
+        
+        .table tbody tr:hover {
+            background: rgba(37, 99, 235, 0.05);
+        }
+        
+        .status-badge {
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+        
+        .status-pending {
+            background: rgba(245, 158, 11, 0.1);
+            color: var(--warning-color);
+        }
+        
+        .status-approved {
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--success-color);
+        }
+        
+        .status-rejected {
+            background: rgba(239, 68, 68, 0.1);
+            color: var(--danger-color);
+        }
+        
+        .approval-step {
+            background: var(--light-bg);
+            padding: 0.25rem 0.5rem;
+            border-radius: 8px;
+            font-size: 0.875rem;
+            font-weight: 600;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
+            border: none;
+            border-radius: 8px;
+            padding: 0.75rem 1.5rem;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+        }
+        
+        .btn-sm {
+            padding: 0.5rem 1rem;
+            font-size: 0.875rem;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 4rem 2rem;
+            color: white;
+        }
+        
+        .empty-state i {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+            opacity: 0.7;
+        }
+        
+        .amount-cell {
+            font-family: 'Courier New', monospace;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+    <%- include('partials/navbar') %>
+    
+    <div class="container documents-container">
+        <div class="page-header">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h1 class="h3 mb-2">
+                        <i class="fas fa-folder me-2"></i>Documents Management
+                    </h1>
+                    <p class="text-muted mb-0">View and manage all uploaded documents</p>
+                </div>
+                <a href="/documents/upload" class="btn btn-primary">
+                    <i class="fas fa-upload me-2"></i>Upload New Document
+                </a>
+            </div>
+        </div>
+        
+        <div class="table-container">
+            <% if (documents.length === 0) { %>
+                <div class="empty-state">
+                    <i class="fas fa-folder-open"></i>
+                    <h3>No documents found</h3>
+                    <p>Upload your first document to get started</p>
+                    <a href="/documents/upload" class="btn btn-primary">
+                        <i class="fas fa-upload me-2"></i>Upload Document
+                    </a>
+                </div>
+            <% } else { %>
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Filename</th>
+                                <th>Vendor</th>
+                                <th>Amount</th>
+                                <th>Status</th>
+                                <th>Approval Step</th>
+                                <th>Uploaded By</th>
+                                <th>Date</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <% documents.forEach(doc => { %>
+                                <tr>
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            <i class="fas fa-file me-2 text-primary"></i>
+                                            <span><%= doc.filename %></span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <%= doc.vendor || 'Not specified' %>
+                                    </td>
+                                    <td class="amount-cell">
+                                        <% if (doc.amount) { %>
+                                            $<%= parseFloat(doc.amount).toFixed(2) %>
+                                        <% } else { %>
+                                            -
+                                        <% } %>
+                                    </td>
+                                    <td>
+                                        <span class="status-badge status-<%= doc.status || 'pending' %>">
+                                            <%= (doc.status || 'pending').charAt(0).toUpperCase() + (doc.status || 'pending').slice(1) %>
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <span class="approval-step">
+                                            Step <%= doc.approval_step || 1 %>
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            <i class="fas fa-user me-2 text-muted small"></i>
+                                            <span><%= doc.uploader_name || 'Unknown' %></span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <%= new Date(doc.created_at).toLocaleDateString() %>
+                                    </td>
+                                    <td>
+                                        <div class="btn-group btn-group-sm">
+                                            <a href="<%= doc.cloudinary_url %>" target="_blank" class="btn btn-outline-primary btn-sm">
+                                                <i class="fas fa-eye"></i>
+                                            </a>
+                                            <a href="<%= doc.cloudinary_url %>" download="<%= doc.filename %>" class="btn btn-outline-secondary btn-sm">
+                                                <i class="fas fa-download"></i>
+                                            </a>
+                                            
+                                            <% if (doc.status === 'pending') { %>
+                                                <% 
+                                                const currentStep = doc.approval_step || 1; 
+                                                let canApprove = false; 
+                                                
+                                                if (userRole === 'admin') {
+                                                    canApprove = true;
+                                                } else if (userRole === 'reviewer' && currentStep === 1) {
+                                                    canApprove = true;
+                                                } else if (userRole === 'manager' && currentStep === 2) {
+                                                    canApprove = true;
+                                                } else if (userRole === 'finance' && currentStep === 3) {
+                                                    canApprove = true;
+                                                }
+                                                %>
+                                                
+                                                <% if (canApprove) { %>
+                                                    <form method="POST" action="/documents/<%= doc.id %>/approve" style="display: inline;">
+                                                        <button type="submit" class="btn btn-success btn-sm">
+                                                            <i class="fas fa-check"></i> Approve
+                                                        </button>
+                                                    </form>
+                                                    
+                                                    <form method="POST" action="/documents/<%= doc.id %>/reject" style="display: inline;">
+                                                        <button type="submit" class="btn btn-danger btn-sm">
+                                                            <i class="fas fa-times"></i> Reject
+                                                        </button>
+                                                    </form>
+                                                <% } %>
+                                            <% } %>
+                                            
+                                            <button class="btn btn-outline-danger btn-sm" onclick="deleteDocument(<%= doc.id %>, this)">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            <% }) %>
+                        </tbody>
+                    </table>
+                </div>
+            <% } %>
+        </div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function deleteDocument(docId, button) {
+            if (confirm('Are you sure you want to delete this document?')) {
+                fetch(`/documents/${docId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // Remove the table row
+                        const row = button.closest('tr');
+                        row.style.transition = 'opacity 0.3s';
+                        row.style.opacity = '0';
+                        setTimeout(() => row.remove(), 300);
+                        
+                        // Show empty state if no more documents
+                        const tbody = document.querySelector('tbody');
+                        if (tbody.children.length === 0) {
+                            location.reload();
+                        }
+                    } else {
+                        alert('Error deleting document: ' + data.error);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Error deleting document');
+                });
+            }
+        }
+    </script>
+</body>
+</html>

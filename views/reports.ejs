@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Documents Report - AI Application</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .reports-container {
+            padding: 2rem 0;
+        }
+        .reports-card {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            border: none;
+            margin-bottom: 2rem;
+        }
+        .reports-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 15px 15px 0 0;
+            padding: 2rem;
+        }
+        .filter-section {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        .table-container {
+            overflow-x: auto;
+        }
+        .status-badge {
+            font-size: 0.75rem;
+            padding: 0.25rem 0.5rem;
+        }
+        .approval-step {
+            font-size: 0.8rem;
+            color: #6c757d;
+        }
+        .btn-export {
+            border-radius: 25px;
+            padding: 0.5rem 1.5rem;
+            font-weight: 500;
+        }
+    </style>
+</head>
+<body>
+    <%- include('partials/navbar') %>
+    
+    <div class="container reports-container">
+        <div class="card reports-card">
+            <div class="reports-header">
+                <h2><i class="fas fa-chart-bar me-2"></i>Documents Report</h2>
+                <p>Generate and export filtered document reports</p>
+            </div>
+            
+            <div class="card-body">
+                <% if (typeof error_msg !== 'undefined' && error_msg.length > 0) { %>
+                    <% error_msg.forEach(message => { %>
+                        <div class="alert alert-danger mb-3">
+                            <%= message %>
+                        </div>
+                    <% }) %>
+                <% } %>
+                
+                <% if (typeof success_msg !== 'undefined' && success_msg.length > 0) { %>
+                    <% success_msg.forEach(message => { %>
+                        <div class="alert alert-success mb-3">
+                            <%= message %>
+                        </div>
+                    <% }) %>
+                <% } %>
+                
+                <!-- Filter Form -->
+                <div class="filter-section">
+                    <h5 class="mb-3"><i class="fas fa-filter me-2"></i>Filter Documents</h5>
+                    
+                    <form id="report-filter-form" method="GET" action="/reports" class="row g-3">
+                        <div class="col-md-6">
+                            <label for="startDate" class="form-label">Start Date</label>
+                            <input type="date" class="form-control" id="startDate" name="startDate" value="<%= filters.startDate || '' %>">
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <label for="endDate" class="form-label">End Date</label>
+                            <input type="date" class="form-control" id="endDate" name="endDate" value="<%= filters.endDate || '' %>">
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <label for="vendor" class="form-label">Vendor</label>
+                            <input type="text" class="form-control" id="vendor" name="vendor" placeholder="Enter vendor name" value="<%= filters.vendor || '' %>">
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <label for="status" class="form-label">Status</label>
+                            <select class="form-select" id="status" name="status">
+                                <option value="">All Status</option>
+                                <option value="pending" <%= filters.status === 'pending' ? 'selected' : '' %>>Pending</option>
+                                <option value="approved" <%= filters.status === 'approved' ? 'selected' : '' %>>Approved</option>
+                                <option value="rejected" <%= filters.status === 'rejected' ? 'selected' : '' %>>Rejected</option>
+                            </select>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <label for="minAmount" class="form-label">Min Amount</label>
+                            <input type="number" class="form-control" id="minAmount" name="minAmount" placeholder="0.00" step="0.01" value="<%= filters.minAmount || '' %>">
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <label for="maxAmount" class="form-label">Max Amount</label>
+                            <input type="number" class="form-control" id="maxAmount" name="maxAmount" placeholder="999999.99" step="0.01" value="<%= filters.maxAmount || '' %>">
+                        </div>
+                        
+                        <div class="col-12">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-search me-2"></i>Apply Filters
+                            </button>
+                            <a href="/reports" class="btn btn-outline-secondary ms-2">
+                                <i class="fas fa-times me-2"></i>Clear Filters
+                            </a>
+                        </div>
+                    </form>
+                </div>
+                
+                <!-- Insights Summary -->
+                <div class="mb-4 p-3 bg-light rounded shadow-sm" id="insights-section">
+                    <h5><i class="fas fa-lightbulb me-2"></i>Report Insights</h5>
+                    <p id="insights-summary">Loading insights...</p>
+
+                    <div class="row">
+                        <div class="col-sm-6 col-md-3 mb-3">
+                            <div class="card text-center">
+                                <div class="card-body">
+                                    <h6>Total Spend</h6>
+                                    <h4 id="insight-total-spend">-</h4>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-sm-6 col-md-3 mb-3">
+                            <div class="card text-center">
+                                <div class="card-body">
+                                    <h6>Average Amount (R)</h6>
+                                    <h4 id="insight-average">-</h4>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-sm-6 col-md-3 mb-3">
+                            <div class="card text-center">
+                                <div class="card-body">
+                                    <h6>Document Count</h6>
+                                    <h4 id="insight-count">-</h4>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-sm-6 col-md-3 mb-3">
+                            <div class="card text-center">
+                                <div class="card-body">
+                                    <h6>Outliers (2σ)</h6>
+                                    <h4 id="insight-outliers">-</h4>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <div class="card p-2">
+                                <h6 class="mb-2">Top Vendors</h6>
+                                <canvas id="chart-top-vendors" height="170"></canvas>
+                            </div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <div class="card p-2">
+                                <h6 class="mb-2">Amount Distribution</h6>
+                                <canvas id="chart-amount-dist" height="170"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Export Buttons -->
+                <div class="d-flex justify-content-end mb-3">
+                    <form method="GET" action="/reports/export/excel" class="me-2" style="display: inline;">
+                        <input type="hidden" name="startDate" value="<%= filters.startDate || '' %>">
+                        <input type="hidden" name="endDate" value="<%= filters.endDate || '' %>">
+                        <input type="hidden" name="vendor" value="<%= filters.vendor || '' %>">
+                        <input type="hidden" name="status" value="<%= filters.status || '' %>">
+                        <input type="hidden" name="minAmount" value="<%= filters.minAmount || '' %>">
+                        <input type="hidden" name="maxAmount" value="<%= filters.maxAmount || '' %>">
+                        <button type="submit" class="btn btn-success btn-export">
+                            <i class="fas fa-file-excel me-2"></i>Export to Excel
+                        </button>
+                    </form>
+                    
+                    <form method="GET" action="/reports/export/pdf" style="display: inline;">
+                        <input type="hidden" name="startDate" value="<%= filters.startDate || '' %>">
+                        <input type="hidden" name="endDate" value="<%= filters.endDate || '' %>">
+                        <input type="hidden" name="vendor" value="<%= filters.vendor || '' %>">
+                        <input type="hidden" name="status" value="<%= filters.status || '' %>">
+                        <input type="hidden" name="minAmount" value="<%= filters.minAmount || '' %>">
+                        <input type="hidden" name="maxAmount" value="<%= filters.maxAmount || '' %>">
+                        <button type="submit" class="btn btn-danger btn-export">
+                            <i class="fas fa-file-pdf me-2"></i>Export to PDF
+                        </button>
+                    </form>
+                </div>
+                
+                <!-- Results Table -->
+                <div class="table-container">
+                    <% if (documents.length > 0) { %>
+                        <table class="table table-striped table-hover">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>Filename</th>
+                                    <th>Vendor</th>
+                                    <th>Amount</th>
+                                    <th>Status</th>
+                                    <th>Uploaded By</th>
+                                    <th>Created At</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <% documents.forEach(doc => { %>
+                                    <tr>
+                                        <td>
+                                            <i class="fas fa-file me-2"></i>
+                                            <%= doc.filename %>
+                                        </td>
+                                        <td><%= doc.vendor || 'Not specified' %></td>
+                                        <td>
+                                            <% if (doc.amount) { %>
+                                                R<%= parseFloat(doc.amount).toFixed(2) %>
+                                            <% } else { %>
+                                                -
+                                            <% } %>
+                                        </td>
+                                        <td>
+                                            <% if (doc.status === 'pending') { %>
+                                                <span class="badge bg-warning text-dark status-badge">Pending</span>
+                                            <% } else if (doc.status === 'approved') { %>
+                                                <span class="badge bg-success status-badge">Approved</span>
+                                            <% } else if (doc.status === 'rejected') { %>
+                                                <span class="badge bg-danger status-badge">Rejected</span>
+                                            <% } %>
+                                        </td>
+                                        <td>
+                                            <i class="fas fa-user me-1"></i>
+                                            <%= doc.uploader_name %>
+                                        </td>
+                                        <td><%= new Date(doc.created_at).toLocaleDateString() %></td>
+                                    </tr>
+                                <% }) %>
+                            </tbody>
+                        </table>
+                    <% } else { %>
+                        <div class="text-center py-5">
+                            <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                            <h5 class="text-muted">No documents found</h5>
+                            <p class="text-muted">Try adjusting your filters or upload some documents first.</p>
+                        </div>
+                    <% } %>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        const insights = {
+            chartTopVendors: null,
+            chartAmountDist: null
+        };
+
+        async function loadInsights() {
+            const filters = Object.fromEntries(new FormData(document.getElementById('report-filter-form')).entries());
+            const query = new URLSearchParams(filters).toString();
+            const url = `/reports/insights?${query}`;
+
+            try {
+                const res = await fetch(url);
+                if (!res.ok) throw new Error('Failed to load insights');
+                const data = await res.json();
+
+                document.getElementById('insights-summary').textContent = data.summary;
+                document.getElementById('insight-total-spend').textContent = `R${data.totalSpend.toFixed(2)}`;
+                document.getElementById('insight-average').textContent = `R${data.averageAmount.toFixed(2)}`;
+                document.getElementById('insight-count').textContent = data.documentCount;
+                document.getElementById('insight-outliers').textContent = data.unusualDocuments.length;
+
+                const topVendorLabels = data.topVendors.map(v => v.vendor);
+                const topVendorValues = data.topVendors.map(v => Number(v.total.toFixed(2)));
+
+                const allAmounts = data.unusualDocuments.length ?
+                    data.unusualDocuments.map(d => d.amount) : [];
+
+                if (insights.chartTopVendors) {
+                    insights.chartTopVendors.destroy();
+                }
+                insights.chartTopVendors = new Chart(document.getElementById('chart-top-vendors'), {
+                    type: 'bar',
+                    data: {
+                        labels: topVendorLabels,
+                        datasets: [{
+                            label: 'Spend',
+                            data: topVendorValues,
+                            backgroundColor: 'rgba(37,99,235,0.6)',
+                            borderColor: 'rgba(37,99,235,1)',
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        scales: {
+                            y: { beginAtZero: true }
+                        }
+                    }
+                });
+
+                if (insights.chartAmountDist) {
+                    insights.chartAmountDist.destroy();
+                }
+                insights.chartAmountDist = new Chart(document.getElementById('chart-amount-dist'), {
+                    type: 'line',
+                    data: {
+                        labels: data.unusualDocuments.map(d => d.filename),
+                        datasets: [{
+                            label: 'Unusual Amounts',
+                            data: data.unusualDocuments.map(d => d.amount),
+                            fill: false,
+                            borderColor: 'rgba(220,53,69,0.85)',
+                            tension: 0.25,
+                            pointRadius: 4
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        scales: {
+                            y: { beginAtZero: true }
+                        }
+                    }
+                });
+
+            } catch (err) {
+                console.error(err);
+                document.getElementById('insights-summary').textContent = 'Unable to load insights at this time.';
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            loadInsights();
+            const filterForm = document.getElementById('report-filter-form');
+            filterForm.addEventListener('submit', () => setTimeout(loadInsights, 100));
+        });
+    </script>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
