@@ -14,22 +14,27 @@ router.get('/login', (req, res) => {
 // POST /login
 router.post('/login', async (req, res) => {
   try {
-    const { email, password } = req.body;
+    let { email, password } = req.body;
+    email = email.trim().toLowerCase();
+
     console.log('Login attempt:', { email, password: password ? '***' : 'empty' });
-    
-    // Find user by email
-    const result = await query('SELECT * FROM users WHERE email = $1', [email]);
+
+    const result = await query('SELECT * FROM users WHERE LOWER(email) = $1', [email]);
     console.log('User found:', result.rows.length > 0 ? 'YES' : 'NO');
-    
+
     if (result.rows.length === 0) {
       return res.render('login', { error: 'Invalid email or password' });
     }
-    
+
     const user = result.rows[0];
     console.log('User role:', user.role);
-    
-    // Check password (using password_hash column)
-    const isValidPassword = await bcrypt.compare(password, user.password_hash);
+
+    const storedHash = user.password_hash || user.password;
+    if (!storedHash) {
+      return res.render('login', { error: 'Invalid email or password' });
+    }
+
+    const isValidPassword = await bcrypt.compare(password, storedHash);
     console.log('Password valid:', isValidPassword);
     
     if (!isValidPassword) {
@@ -57,19 +62,17 @@ router.get('/register', (req, res) => {
 // POST /register
 router.post('/register', registerLimiter, validateRegistration, handleValidationErrors, async (req, res) => {
   try {
-    const { email, password } = req.body;
-    
-    // Check if user already exists
-    const existingUser = await query('SELECT id FROM users WHERE email = $1', [email]);
-    
+    let { email, password } = req.body;
+    email = email.trim().toLowerCase();
+
+    const existingUser = await query('SELECT id FROM users WHERE LOWER(email) = $1', [email]);
+
     if (existingUser.rows.length > 0) {
       return res.render('register', { error: 'This email is already in use. Please sign in or use a different email.' });
     }
-    
-    // Hash password
+
     const hashedPassword = await bcrypt.hash(password, 10);
-    
-    // Insert user with default role 'reviewer' (matching your table structure)
+
     await query(
       'INSERT INTO users (email, password_hash, role) VALUES ($1, $2, $3)',
       [email, hashedPassword, 'reviewer']
