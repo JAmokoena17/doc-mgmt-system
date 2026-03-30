@@ -103,8 +103,7 @@ router.post('/upload', isAuthenticated, upload.single('document'), async (req, r
                 },
                 {
                   type: 'image',
-                  image_base64: imageBase64,
-                  mime_type: req.file.mimetype
+                  image: imageBase64
                 }
               ]
             }
@@ -113,7 +112,7 @@ router.post('/upload', isAuthenticated, upload.single('document'), async (req, r
       };
 
       const geminiResponse = await fetch(
-        'https://api.generativelanguage.googleapis.com/v1beta2/models/gemini-1.5-flash:generateText',
+        'https://generativelanguage.googleapis.com/v1beta2/models/gemini-1.5-flash:generate',
         {
           method: 'POST',
           headers: {
@@ -129,12 +128,21 @@ router.post('/upload', isAuthenticated, upload.single('document'), async (req, r
         throw new Error(`Gemini API error: ${geminiResult.error?.message || geminiResponse.statusText}`);
       }
 
-      const aiOutput =
-        typeof geminiResult?.output?.text === 'string'
-          ? geminiResult.output.text
-          : Array.isArray(geminiResult?.output?.text)
-          ? geminiResult.output.text.join(' ')
-          : geminiResult?.output?.text?.[0] || JSON.stringify(geminiResult);
+      const aiOutput = (() => {
+        if (typeof geminiResult?.output?.text === 'string') {
+          return geminiResult.output.text;
+        }
+        if (Array.isArray(geminiResult?.output?.text)) {
+          return geminiResult.output.text.join(' ');
+        }
+        if (Array.isArray(geminiResult?.candidates)) {
+          const first = geminiResult.candidates[0];
+          const content = first?.content || first?.message?.content;
+          if (typeof content === 'string') return content;
+          if (Array.isArray(content)) return content.map(part => part?.text || '').join(' ');
+        }
+        return JSON.stringify(geminiResult);
+      })();
 
       extractedData = JSON.parse(aiOutput);
     } catch (aiError) {
