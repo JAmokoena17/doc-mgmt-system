@@ -117,7 +117,7 @@ router.post('/upload', isAuthenticated, upload.single('document'), async (req, r
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: 'Bearer AlzaSyAdKo2KoXTw0dIJbv_oKpnjBSj8CnDrelk'
+            Authorization: 'Bearer AIzaSyAdKo2KoXTw0dIJbv_oKpnjBSj8CnDreIk'
           },
           body: JSON.stringify(geminiPayload)
         }
