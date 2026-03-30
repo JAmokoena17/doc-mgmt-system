@@ -1,50 +1,11 @@
 const express = require('express');
 const multer = require('multer');
 const cloudinary = require('cloudinary').v2;
-const OpenAI = require('openai');
 const ExcelJS = require('exceljs');
 const PDFDocument = require('pdfkit');
 const { query } = require('../db');
 const { isAuthenticated, hasRole } = require('../middleware/auth');
 const router = express.Router();
-
-function normalizeOpenAIContent(content) {
-  if (!content) return '';
-  if (typeof content === 'string') return content;
-  if (Array.isArray(content)) {
-    return content
-      .map(part => {
-        if (typeof part === 'string') return part;
-        if (part?.type === 'text' || part?.type === 'output_text') return part.text || '';
-        return '';
-      })
-      .filter(Boolean)
-      .join(' ');
-  }
-  return '';
-}
-
-function parseOpenAIJson(content) {
-  const cleaned = content
-    .replace(/```json\s*([\s\S]*?)```/gi, '$1')
-    .replace(/```/g, '')
-    .trim();
-
-  try {
-    return JSON.parse(cleaned);
-  } catch (error) {
-    const match = cleaned.match(/\{[\s\S]*\}/);
-    if (match) {
-      return JSON.parse(match[0]);
-    }
-    throw error;
-  }
-}
-
-// Initialize OpenAI
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
-});
 
 // Configure Cloudinary
 cloudinary.config({
@@ -127,32 +88,55 @@ router.post('/upload', isAuthenticated, upload.single('document'), async (req, r
       invoice_number: null
     };
 
-    // Try to extract data using OpenAI Vision API
+    // Try to extract data using Google Gemini
     try {
-      const visionResponse = await openai.chat.completions.create({
-        model: 'gpt-4o-mini',
-        messages: [
-          {
-            role: 'user',
-            content: [
-              {
-                type: 'text',
-                text: 'Extract vendor, invoice_date (YYYY-MM-DD), amount, vat, invoice_number from this invoice. Return only valid JSON with those keys and nothing else.'
-              },
-              {
-                type: 'image_url',
-                image_url: {
-                  url: cloudinaryResult.secure_url
+      const imageBase64 = req.file.buffer.toString('base64');
+      const geminiPayload = {
+        prompt: {
+          messages: [
+            {
+              role: 'user',
+              content: [
+                {
+                  type: 'text',
+                  text: 'Extract vendor, invoice_date (YYYY-MM-DD), amount, vat, invoice_number from this invoice image. Return only valid JSON with those keys and nothing else.'
+                },
+                {
+                  type: 'image',
+                  image_base64: imageBase64,
+                  mime_type: req.file.mimetype
                 }
-              }
-            ]
-          }
-        ],
-        max_tokens: 300
-      });
+              ]
+            }
+          ]
+        }
+      };
 
-      const aiResponseRaw = normalizeOpenAIContent(visionResponse.choices?.[0]?.message?.content);
-      extractedData = parseOpenAIJson(aiResponseRaw);
+      const geminiResponse = await fetch(
+        'https://api.generativelanguage.googleapis.com/v1beta2/models/gemini-1.5-flash:generateText',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: 'Bearer AlzaSyAdKo2KoXTw0dIJbv_oKpnjBSj8CnDrelk'
+          },
+          body: JSON.stringify(geminiPayload)
+        }
+      );
+
+      const geminiResult = await geminiResponse.json();
+      if (!geminiResponse.ok) {
+        throw new Error(`Gemini API error: ${geminiResult.error?.message || geminiResponse.statusText}`);
+      }
+
+      const aiOutput =
+        typeof geminiResult?.output?.text === 'string'
+          ? geminiResult.output.text
+          : Array.isArray(geminiResult?.output?.text)
+          ? geminiResult.output.text.join(' ')
+          : geminiResult?.output?.text?.[0] || JSON.stringify(geminiResult);
+
+      extractedData = JSON.parse(aiOutput);
     } catch (aiError) {
       console.error('AI extraction error:', aiError);
       req.flash('error', 'Document uploaded but AI extraction failed. Please update details manually.');
