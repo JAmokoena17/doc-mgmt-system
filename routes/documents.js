@@ -111,21 +111,28 @@ router.post('/upload', isAuthenticated, upload.single('document'), async (req, r
         }
       };
 
-      const geminiResponse = await fetch(
-        'https://generativelanguage.googleapis.com/v1beta2/models/gemini-1.5-flash:generate',
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: 'Bearer AIzaSyAdKo2KoXTw0dIJbv_oKpnjBSj8CnDreIk'
-          },
-          body: JSON.stringify(geminiPayload)
-        }
-      );
+      const geminiUrl = 'https://generativelanguage.googleapis.com/v1beta2/models/gemini-1.5-flash:generate?key=AIzaSyAdKo2KoXTw0dIJbv_oKpnjBSj8CnDreIk';
+      const geminiResponse = await fetch(geminiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(geminiPayload)
+      });
 
-      const geminiResult = await geminiResponse.json();
+      const responseText = await geminiResponse.text();
       if (!geminiResponse.ok) {
-        throw new Error(`Gemini API error: ${geminiResult.error?.message || geminiResponse.statusText}`);
+        throw new Error(`Gemini API error ${geminiResponse.status}: ${responseText}`);
+      }
+      if (!responseText) {
+        throw new Error('Gemini API returned an empty response body');
+      }
+
+      let geminiResult;
+      try {
+        geminiResult = JSON.parse(responseText);
+      } catch (parseError) {
+        throw new Error(`Gemini response was not valid JSON: ${responseText}`);
       }
 
       const aiOutput = (() => {
@@ -140,6 +147,9 @@ router.post('/upload', isAuthenticated, upload.single('document'), async (req, r
           const content = first?.content || first?.message?.content;
           if (typeof content === 'string') return content;
           if (Array.isArray(content)) return content.map(part => part?.text || '').join(' ');
+        }
+        if (typeof geminiResult?.output?.[0]?.content === 'string') {
+          return geminiResult.output[0].content;
         }
         return JSON.stringify(geminiResult);
       })();
