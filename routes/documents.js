@@ -8,6 +8,39 @@ const { query } = require('../db');
 const { isAuthenticated, hasRole } = require('../middleware/auth');
 const router = express.Router();
 
+function normalizeOpenAIContent(content) {
+  if (!content) return '';
+  if (typeof content === 'string') return content;
+  if (Array.isArray(content)) {
+    return content
+      .map(part => {
+        if (typeof part === 'string') return part;
+        if (part?.type === 'text' || part?.type === 'output_text') return part.text || '';
+        return '';
+      })
+      .filter(Boolean)
+      .join(' ');
+  }
+  return '';
+}
+
+function parseOpenAIJson(content) {
+  const cleaned = content
+    .replace(/```json\s*([\s\S]*?)```/gi, '$1')
+    .replace(/```/g, '')
+    .trim();
+
+  try {
+    return JSON.parse(cleaned);
+  } catch (error) {
+    const match = cleaned.match(/\{[\s\S]*\}/);
+    if (match) {
+      return JSON.parse(match[0]);
+    }
+    throw error;
+  }
+}
+
 // Initialize OpenAI
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
@@ -104,7 +137,7 @@ router.post('/upload', isAuthenticated, upload.single('document'), async (req, r
             content: [
               {
                 type: 'text',
-                text: 'Extract vendor, invoice_date (YYYY-MM-DD), amount, vat, invoice_number from this invoice. Return JSON.'
+                text: 'Extract vendor, invoice_date (YYYY-MM-DD), amount, vat, invoice_number from this invoice. Return only valid JSON with those keys and nothing else.'
               },
               {
                 type: 'image_url',
@@ -118,9 +151,8 @@ router.post('/upload', isAuthenticated, upload.single('document'), async (req, r
         max_tokens: 300
       });
 
-      const aiResponse = visionResponse.choices[0].message.content;
-      // Parse JSON response
-      extractedData = JSON.parse(aiResponse);
+      const aiResponseRaw = normalizeOpenAIContent(visionResponse.choices?.[0]?.message?.content);
+      extractedData = parseOpenAIJson(aiResponseRaw);
     } catch (aiError) {
       console.error('AI extraction error:', aiError);
       req.flash('error', 'Document uploaded but AI extraction failed. Please update details manually.');
