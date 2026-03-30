@@ -111,7 +111,7 @@ router.post('/upload', isAuthenticated, upload.single('document'), async (req, r
         }
       };
 
-      const geminiUrl = 'https://generativelanguage.googleapis.com/v1beta2/models/gemini-1.5-flash:generate?key=AIzaSyAdKo2KoXTw0dIJbv_oKpnjBSj8CnDreIk';
+      const geminiUrl = 'https://generativelanguage.googleapis.com/v1beta2/models/gemini-1.5-flash:generateText?key=AIzaSyAdKo2KoXTw0dIJbv_oKpnjBSj8CnDreIk';
       const geminiResponse = await fetch(geminiUrl, {
         method: 'POST',
         headers: {
