@@ -23,7 +23,7 @@ router.post('/login', async (req, res) => {
     console.log('User found:', result.rows.length > 0 ? 'YES' : 'NO');
 
     if (result.rows.length === 0) {
-      return res.render('login', { error: 'Invalid email or password' });
+      return res.render('login', { error: 'No account found for this email. Please register first.' });
     }
 
     const user = result.rows[0];
@@ -38,7 +38,7 @@ router.post('/login', async (req, res) => {
     console.log('Password valid:', isValidPassword);
     
     if (!isValidPassword) {
-      return res.render('login', { error: 'Invalid email or password' });
+      return res.render('login', { error: 'Incorrect password. Please try again.' });
     }
     
     // Set session
@@ -59,29 +59,60 @@ router.get('/register', (req, res) => {
   res.render('register');
 });
 
+// POST /check-email
+router.post('/check-email', async (req, res) => {
+  try {
+    const email = String(req.body.email || '').trim().toLowerCase();
+
+    if (!email) {
+      return res.json({ exists: false });
+    }
+
+    const existingUser = await query('SELECT id FROM users WHERE LOWER(email) = $1', [email]);
+
+    if (existingUser.rows.length > 0) {
+      return res.json({
+        exists: true,
+        message: 'This email is already registered. Please sign in instead, or use a different email address.'
+      });
+    }
+
+    return res.json({ exists: false });
+  } catch (error) {
+    console.error('Email check error:', error);
+    return res.status(500).json({ exists: false, message: 'We could not verify this email right now. Please try again.' });
+  }
+});
+
 // POST /register
 router.post('/register', registerLimiter, validateRegistration, handleValidationErrors, async (req, res) => {
   try {
     let { email, password } = req.body;
     email = email.trim().toLowerCase();
+    const name = email.split('@')[0] || 'User';
 
     const existingUser = await query('SELECT id FROM users WHERE LOWER(email) = $1', [email]);
 
     if (existingUser.rows.length > 0) {
-      return res.render('register', { error: 'This email is already in use. Please sign in or use a different email.' });
+      return res.render('register', { error: 'This email is already registered. Please sign in instead, or use a different email address.' });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
     await query(
-      'INSERT INTO users (email, password_hash, role) VALUES ($1, $2, $3)',
-      [email, hashedPassword, 'reviewer']
+      'INSERT INTO users (email, password_hash, name, role) VALUES ($1, $2, $3, $4)',
+      [email, hashedPassword, name, 'user']
     );
     
     res.redirect('/login');
   } catch (error) {
     console.error('Registration error:', error);
-    res.render('register', { error: 'An error occurred during registration' });
+
+    if (error.code === '23505' || error.constraint === 'users_email_key') {
+      return res.render('register', { error: 'This email is already registered. Please sign in instead, or use a different email address.' });
+    }
+
+    res.render('register', { error: 'We could not complete registration right now. Please try again.' });
   }
 });
 

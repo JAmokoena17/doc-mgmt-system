@@ -106,9 +106,11 @@
                     </h1>
                     <p class="text-muted mb-0">Manage and view your uploaded documents</p>
                 </div>
-                <a href="/documents/upload" class="btn btn-primary">
-                    <i class="fas fa-upload me-2"></i>Upload New
-                </a>
+                <% if (typeof userRole !== 'undefined' && userRole === 'user') { %>
+                    <a href="/documents/upload" class="btn btn-primary">
+                        <i class="fas fa-upload me-2"></i>Upload New
+                    </a>
+                <% } %>
             </div>
         </div>
         
@@ -117,9 +119,11 @@
                 <i class="fas fa-folder-open"></i>
                 <h3>No documents yet</h3>
                 <p>Upload your first document to get started</p>
-                <a href="/documents/upload" class="btn btn-primary">
-                    <i class="fas fa-upload me-2"></i>Upload Document
-                </a>
+                <% if (typeof userRole !== 'undefined' && userRole === 'user') { %>
+                    <a href="/documents/upload" class="btn btn-primary">
+                        <i class="fas fa-upload me-2"></i>Upload Document
+                    </a>
+                <% } %>
             </div>
         <% } else { %>
             <div class="row">

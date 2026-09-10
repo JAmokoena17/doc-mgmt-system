@@ -11,11 +11,13 @@
     <div class="collapse navbar-collapse" id="navbarNav">
       <ul class="navbar-nav ms-auto">
         <% if (typeof user !== 'undefined' && user) { %>
-          <li class="nav-item">
-            <a class="nav-link" href="/documents/upload">
-              Upload
-            </a>
-          </li>
+          <% if (typeof userRole !== 'undefined' && userRole === 'user') { %>
+            <li class="nav-item">
+              <a class="nav-link" href="/documents/upload">
+                Upload
+              </a>
+            </li>
+          <% } %>
           <li class="nav-item">
             <a class="nav-link" href="/documents">
               Documents

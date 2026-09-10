@@ -73,12 +73,12 @@ router.get('/', isAuthenticated, async (req, res) => {
 });
 
 // GET /upload
-router.get('/upload', isAuthenticated, (req, res) => {
+router.get('/upload', isAuthenticated, hasRole('user'), (req, res) => {
   res.render('upload');
 });
 
 // POST /upload
-router.post('/upload', isAuthenticated, upload.single('document'), async (req, res) => {
+router.post('/upload', isAuthenticated, hasRole('user'), upload.single('document'), async (req, res) => {
   try {
     if (!req.file) {
       req.flash('error', 'Please select a file to upload');
