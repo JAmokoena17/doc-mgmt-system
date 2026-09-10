@@ -14,6 +14,14 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET
 });
 
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+const GEMINI_MODELS = Array.from(new Set([
+  process.env.GEMINI_MODEL,
+  'gemini-3.6-flash',
+  'gemini-3.5-flash',
+  'gemini-3.1-flash-lite'
+].filter(Boolean)));
+
 // Configure multer for memory storage
 const storage = multer.memoryStorage();
 const upload = multer({
@@ -22,7 +30,7 @@ const upload = multer({
     fileSize: 10 * 1024 * 1024 // 10MB limit
   },
   fileFilter: (req, file, cb) => {
-    // Accept common document types
+    // Accept common document and image types
     const allowedTypes = [
       'application/pdf',
       'application/msword',
@@ -30,14 +38,20 @@ const upload = multer({
       'application/vnd.ms-excel',
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       'image/jpeg',
+      'image/jpg',
       'image/png',
-      'image/gif'
+      'image/gif',
+      'image/webp',
+      'image/bmp',
+      'image/tiff',
+      'image/heic',
+      'image/heif'
     ];
     
     if (allowedTypes.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error('Invalid file type. Only PDF, Word, Excel, and image files are allowed.'), false);
+      cb(new Error('Invalid file type. Only PDF, Word, Excel, and common image formats are allowed.'), false);
     }
   }
 });
@@ -90,71 +104,92 @@ router.post('/upload', isAuthenticated, upload.single('document'), async (req, r
 
     // Try to extract data using Google Gemini
     try {
+      if (!GEMINI_API_KEY) {
+        throw new Error('GEMINI_API_KEY is not configured in the environment');
+      }
+
       const imageBase64 = req.file.buffer.toString('base64');
       const geminiPayload = {
-        prompt: {
-          messages: [
-            {
-              role: 'user',
-              content: [
-                {
-                  type: 'text',
-                  text: 'Extract vendor, invoice_date (YYYY-MM-DD), amount, vat, invoice_number from this invoice image. Return only valid JSON with those keys and nothing else.'
-                },
-                {
-                  type: 'image',
-                  image: imageBase64
+        contents: [
+          {
+            parts: [
+              {
+                text: 'Extract vendor, invoice_date (YYYY-MM-DD), amount, vat, invoice_number from this invoice image. Return only valid JSON with those keys and nothing else.'
+              },
+              {
+                inlineData: {
+                  mimeType: req.file.mimetype,
+                  data: imageBase64
                 }
-              ]
-            }
-          ]
-        }
+              }
+            ]
+          }
+        ]
       };
 
-      const geminiUrl = 'https://generativelanguage.googleapis.com/v1beta2/models/gemini-1.5-flash:generateText?key=AIzaSyAdKo2KoXTw0dIJbv_oKpnjBSj8CnDreIk';
-      const geminiResponse = await fetch(geminiUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(geminiPayload)
-      });
-
-      const responseText = await geminiResponse.text();
-      if (!geminiResponse.ok) {
-        throw new Error(`Gemini API error ${geminiResponse.status}: ${responseText}`);
-      }
-      if (!responseText) {
-        throw new Error('Gemini API returned an empty response body');
-      }
-
       let geminiResult;
-      try {
-        geminiResult = JSON.parse(responseText);
-      } catch (parseError) {
-        throw new Error(`Gemini response was not valid JSON: ${responseText}`);
+      let lastGeminiError;
+
+      for (const geminiModel of GEMINI_MODELS) {
+        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(geminiModel)}:generateContent?key=${encodeURIComponent(GEMINI_API_KEY)}`;
+        const geminiResponse = await fetch(geminiUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(geminiPayload)
+        });
+
+        const responseText = await geminiResponse.text();
+
+        if (!geminiResponse.ok) {
+          lastGeminiError = new Error(`Gemini API error for ${geminiModel} ${geminiResponse.status}: ${responseText}`);
+
+          if (geminiResponse.status === 404 || geminiResponse.status === 503) {
+            continue;
+          }
+
+          throw lastGeminiError;
+        }
+
+        if (!responseText) {
+          throw new Error('Gemini API returned an empty response body');
+        }
+
+        try {
+          geminiResult = JSON.parse(responseText);
+          break;
+        } catch (parseError) {
+          throw new Error(`Gemini response was not valid JSON: ${responseText}`);
+        }
+      }
+
+      if (!geminiResult) {
+        throw lastGeminiError || new Error('Gemini API returned no usable response');
       }
 
       const aiOutput = (() => {
-        if (typeof geminiResult?.output?.text === 'string') {
-          return geminiResult.output.text;
+        const partsText = geminiResult?.candidates?.[0]?.content?.parts
+          ?.map(part => part?.text || '')
+          .join('')
+          .trim();
+
+        if (partsText) {
+          return partsText;
         }
-        if (Array.isArray(geminiResult?.output?.text)) {
-          return geminiResult.output.text.join(' ');
-        }
-        if (Array.isArray(geminiResult?.candidates)) {
-          const first = geminiResult.candidates[0];
-          const content = first?.content || first?.message?.content;
-          if (typeof content === 'string') return content;
-          if (Array.isArray(content)) return content.map(part => part?.text || '').join(' ');
-        }
-        if (typeof geminiResult?.output?.[0]?.content === 'string') {
-          return geminiResult.output[0].content;
-        }
+
         return JSON.stringify(geminiResult);
       })();
 
-      extractedData = JSON.parse(aiOutput);
+      const normalizedAiOutput = aiOutput
+        .replace(/^```(?:json)?\s*/i, '')
+        .replace(/\s*```$/i, '')
+        .trim();
+
+      const jsonMatch = normalizedAiOutput.match(/\{[\s\S]*\}/);
+      const parsedAiOutput = JSON.parse(jsonMatch ? jsonMatch[0] : normalizedAiOutput);
+
+      extractedData = parsedAiOutput;
     } catch (aiError) {
       console.error('AI extraction error:', aiError);
       req.flash('error', 'Document uploaded but AI extraction failed. Please update details manually.');
