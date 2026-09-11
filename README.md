@@ -20,11 +20,13 @@ To test the application, start by registering a new user account on the live sit
 
 ## Local Setup
 
-If you want to run the project locally, clone the repository and run npm install to install dependencies. Create a .env file with your database, cloud storage, and AI keys. Then start the server with npm run dev and open http://localhost:3000 in your browser.
+If you want to run the project locally, clone the repository and run npm install to install dependencies. Create a .env file with your database, cloud storage, and AI keys. Then start the server with npm run dev and open http://localhost:3002 in your browser.
 
 ## Author
 
 Junior Mokoena  
 GitHub: https://github.com/JAmokoena17  
 LinkedIn: https://linkedin.com/in/ja-mokoena-a6803b377
+
+
 
